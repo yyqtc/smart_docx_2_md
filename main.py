@@ -13,7 +13,7 @@ def _initiate_agent():
         model="qwen-plus",
         openai_api_key=config["QWEN_API_KEY"],
         openai_api_base=config["QWEN_API_BASE"],
-        temperature=0.7
+        temperature=0.6
     )
 
     system_prompt = """
