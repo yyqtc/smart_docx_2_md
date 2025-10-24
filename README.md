@@ -22,8 +22,8 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/yyqtc/docx_2_md.git
-   cd docx_2_md
+   git clone https://github.com/yyqtc/smart_docx_2_md.git
+   cd smart_docx_2_md
    ```
 
 2. **安装依赖**
