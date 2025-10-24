@@ -2,3 +2,6 @@ __pycache__
 output/
 docx/
 config.json
+
+# Ignore all docx files anywhere in the project
+*.docx

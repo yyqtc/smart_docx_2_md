@@ -109,7 +109,7 @@ output/
 ### 目录结构
 
 ```
-docx_2_md/
+smart_docx_2_md/
 ├── main.py              # 主程序入口
 ├── tool.py              # 核心转换工具
 ├── custome_type.py      # 自定义数据类型
