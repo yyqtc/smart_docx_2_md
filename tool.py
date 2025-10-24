@@ -8,7 +8,7 @@ import json
 
 config = json.load(open("./config.json", encoding="utf-8"))
 
-def _revert_word_to_md(doc: Document, md_project_name: str) -> str:
+def _revert_docx_to_md(doc: Document, md_project_name: str) -> str:
     image_map = {}
     image_count = 0
 
@@ -52,51 +52,51 @@ def _revert_word_to_md(doc: Document, md_project_name: str) -> str:
     return full_text.strip()
         
 @tool
-def get_word_list() -> List[str]:
+def get_docx_list() -> List[str]:
     """
-    获取本系统存放的PDF文件名列表。
+    获取本系统存放的DOCX文件名列表。
 
     Args:
         无
 
     Returns:
-        返回本系统存放的PDF文件名列表。
+        返回本系统存放的DOCX文件名列表。
     """
 
-    filelist = os.listdir(config["WORD_DIR_PATH"])
+    filelist = os.listdir(config["DOCX_DIR_PATH"])
     return [file for file in filelist if file.endswith(".docx")]
 
 @tool
-def revert_and_save_md_file(word_name: str, md_project_name: str, md_file_name: str) -> str:
+def revert_and_save_md_file(docx_name: str, md_project_name: str, md_file_name: str) -> str:
     """
-    将WORD文件转换为MD文件，并保存到指定MD项目目录中。
+    将DOCX文件转换为MD文件，并保存到指定MD项目目录中。
     转换后务必对该MD文件按照结构化思维进行美化。
     
     Args:
-        word_name: WORD文件名称
+        docx_name: DOCX文件名称
         md_project_name: MD项目名称
         md_file_name: MD文件名称，必须以.md结尾
     
     Returns:
-        如果word文件不存在，则返回"word文件不存在"
-        如果文件不是word文件，则返回"文件不是word文件"
+        如果docx文件不存在，则返回"docx文件不存在"
+        如果文件不是docx文件，则返回"文件不是docx文件"
         如果md文件路径已经存在，则返回"md文件已存在"
-        如果word文件存在，则将WORD文件转换为MD文件并保存在指定MD项目目录中，如果转换保存成功，则返回"转换保存成功"，否则返回"转换保存失败"
+        如果docx文件存在，则将DOCX文件转换为MD文件并保存在指定MD项目目录中，如果转换保存成功，则返回"转换保存成功"，否则返回"转换保存失败"
     """
 
-    word_path = os.path.join(config["WORD_DIR_PATH"], word_name)
+    docx_path = os.path.join(config["DOCX_DIR_PATH"], docx_name)
     md_path = os.path.join(config["MD_DIR_PATH"], md_project_name, md_file_name)
 
-    if not os.path.exists(word_path) or not os.path.isfile(word_path):
-        return "word文件不存在"
-    elif not word_path.endswith(".docx"):
-        return "文件不是word文件"
+    if not os.path.exists(docx_path) or not os.path.isfile(docx_path):
+        return "docx文件不存在"
+    elif not docx_path.endswith(".docx"):
+        return "文件不是docx文件"
     elif os.path.exists(md_path):
         return "md文件已存在"
     else:
-        doc = Document(word_path)
+        doc = Document(docx_path)
         try:
-            md_file_content = _revert_word_to_md(doc, md_project_name)
+            md_file_content = _revert_docx_to_md(doc, md_project_name)
 
             with open(md_path, 'w+', encoding="utf-8") as f:
                 f.write(md_file_content)
@@ -216,7 +216,7 @@ def save_md_file(md_project_name: str, md_file_name: str, md_file_content: str) 
         return "保存成功"
 
 tools = [
-    get_word_list,
+    get_docx_list,
     revert_and_save_md_file,
     mkdir_md_project,
     count_md_file_len,
