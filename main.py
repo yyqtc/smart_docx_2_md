@@ -1,105 +1,139 @@
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_structured_chat_agent, AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate
-from tool import tools
+from tool import mkdir_md_project, revert_and_save_md_file, read_md_file, save_md_file
 
-import asyncio
 import json
+import time
+import os
 
 config = json.load(open("./config.json", encoding="utf-8"))
 
-def _initiate_agent():
+def main():
+    system_prompt_1 = ChatPromptTemplate.from_messages([
+        ("system", """
+            你是一位专业的助手。
+            请你帮我根据用户输入的docx文件名，生成一个markdown文件夹的名字。
+            只返回文件夹名字，不要返回任何多余的内容。
+            注意！
+            1. 文件夹名不能包含特殊字符，只能包含字母、汉字、数字和下划线。
+            2. 如果用户提示项目名已被占用，你生成的项目名必须和被占用项目名不同。
+        """),
+        ("placeholder", "{messages}")
+    ])
+
     _llm = ChatOpenAI(
         model="qwen-plus",
         openai_api_key=config["QWEN_API_KEY"],
         openai_api_base=config["QWEN_API_BASE"],
-        temperature=0.6
+        temperature=0.4
     )
 
-    system_prompt = """
-        你是一位专业的且话不多的助手，总是能够以最简洁的、最准确的方式回答问题。你能够使用以下能力：
-        {tools}
+    md_name_assistant = system_prompt_1 | _llm
 
-        你能够调用的能力的名称为：{tool_names}
-
-        你可以选择调用能力或是得到最终答案
-        当你认为需要调用能力时，必须按照以下JSON格式进行响应：
-        {{
-            "action": "能力的名称（必须是上述能力之一）",
-            "action_input": {{
-                "参数名": "参数值"
-            }}
-        }}
-
-        如果你认为可以得出最终答案了，并按照以下JSON格式进行响应：
-        {{
-            "action": "Final Answer",
-            "action_input": {{
-                "output": "你的最终答案"
-            }}
-        }}
-
-        注意！
-        你只能选择调用能力或是得出最终答案。
-        如果你发现没有符合你目的的能力，请尝试使用你的现有知识进行回答。
-        你的响应必须符合JSON格式规范，不要添加任何多余的字符串。
-    """
-
-    human_prompt = """
-        {input}
-
-        {agent_scratchpad}
-
-        注意务必按照JSON格式输出！
-    """
-
-    _prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", human_prompt)
+    system_prompt_2 = ChatPromptTemplate.from_messages([
+        ("system", """
+            你是一位专业的助手。
+            请你帮我根据用户输入的markdown内容，美化markdown文档的结构。
+            美化规则是：
+                1. 你不允许修改内容，只能美化文档的结构。
+                2. 你必须按照markdown的语法进行美化。
+                3. 你不能改变段落的前后顺序。
+            
+            注意！
+            1. 你返回的文档内容必须符合markdown格式，但内容不要带上```markdown。
+            2. 你只返回美化后的markdown文档内容，不要返回任何多余的内容。
+        """),
+        ("placeholder", "{messages}")
     ])
 
-    agent = create_structured_chat_agent(
-        llm=_llm,
-        tools=tools,
-        prompt=_prompt
-    )
-
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        max_iterations=100,
-        handle_parsing_errors=True
-    )
-
-    return agent_executor
-
-def main():
-    agent_executor = _initiate_agent()
-
+    md_pretty_assistant = system_prompt_2 | _llm
+    
     while True:
         user_input = input("请输入你希望转换的docx文件：")
-                    
-        prompt = f"""
-            你是一位专业的助手，具有结构化思维和审美能力。
-            我希望你能够将DOCX文档转换为MD文档，并进行美化。
-            用户输入的文件名是：{user_input}
-            你应该默认认为用户输入的文件名和本系统存储的DOCX文件有关。
-            首先，你应该判断用户输入的文件存储在本系统且格式正确，如果不存在或格式不正确，直接输出“该文件不存在或格式不正确”作为最终答案。
-            如果存在且格式正确，你应该创建一个MD项目目录，并默认后续所有操作都在这个目录下进行，默认MD项目涉及到的资源只有图片资源。如果目录创建失败，你应该尝试创建另一个目录。
-            如果目录创建成功，你应该将用户指定的DOCX文件转换为MD文件。如果转换失败，直接输出"文件转换失败"作为最终答案。
-            如果转换成功，你应该读取转换后的MD文件，并按照结构化思维进行美化。
-            你在美化MD文档时，你只可以改变文档的结构，而必须完全保留原文档的内容，不要破坏文档的先后关系，不要修改图片的路径，不要删除原文档的内容！
-            最后将美化后的MD文件保存到原MD文档中。
 
-            注意！
-            创建一个目录即可，不要反复创建目录！
-            你在美化MD文档时，你只可以改变文档的结构，而必须完全保留原文档的内容，不要破坏文档的先后关系，不要修改图片的路径，不要删除原文档的内容！
-            你在美化MD文档时，你只可以改变文档的结构，而必须完全保留原文档的内容，不要破坏文档的先后关系，不要修改图片的路径，不要删除原文档的内容！
-            你在美化MD文档时，你只可以改变文档的结构，而必须完全保留原文档的内容，不要破坏文档的先后关系，不要修改图片的路径，不要删除原文档的内容！
-        """
+        if user_input == "exit":
+            break
 
-        asyncio.run(agent_executor.ainvoke({"input": prompt}))
+        doc_name = user_input            
+        if not user_input.endswith(".docx"):
+            doc_name = doc_name + ".docx"
+
+        if not os.path.exists(os.path.join(config["DOCX_DIR_PATH"], doc_name)):
+            print(f"文件{doc_name}不存在，请重新输入。")
+            continue
+
+        user_input = f"请根据doc文件名{doc_name}，美化markdown文档的结构。"
+
+        markdown_project_name = ""
+        while not markdown_project_name:
+            temp_name = md_name_assistant.invoke(
+                {"messages": [{"role": "user", "content": user_input}]}
+            ).content
+
+            print(f"生成的项目名：{temp_name}")
+
+            if temp_name.endswith(".md"):
+                temp_name = temp_name.replace(".md", "")
+
+            if os.path.exists(os.path.join(config["MD_DIR_PATH"], temp_name)):
+                user_input += f"\n项目{temp_name}已存在。"
+                time.sleep(2)
+            else:
+                markdown_project_name = temp_name
+
+        markdown_file_name = markdown_project_name + ".md"
+        project_structure = mkdir_md_project(markdown_project_name)
+
+        if isinstance(project_structure, str):
+            print(f"创建项目{markdown_project_name}失败。")
+            continue
+
+        print(f"创建项目{markdown_project_name}成功。")
+
+        revert_result = revert_and_save_md_file(
+            doc_name, 
+            markdown_project_name, 
+            markdown_file_name
+        )
+
+        if revert_result != "转换保存成功":
+            print(f"文件{doc_name}转换保存失败。")
+            continue
+
+        print(f"文件{doc_name}转换保存成功。")
+
+        md_content = read_md_file(markdown_project_name, markdown_file_name)
+        if md_content == "文件不存在":
+            print(f"文件{markdown_file_name}不存在。")
+            continue
+        elif md_content == "文件不是MD文件":
+            print(f"文件{markdown_file_name}不是MD文件。")
+            continue
+
+        print("即将美化markdown结构，这将会是很赞的！")
+
+        prompt = f"请根据markdown文档内容{md_content}，美化markdown文档的结构。"
+        md_pretty_content = md_pretty_assistant.invoke(
+            {"messages": [{"role": "user", "content": prompt}]}
+        ).content
+
+        if md_pretty_content.startswith("```markdown"):
+            md_pretty_content = md_pretty_content.replace("```markdown", "")
+
+        print("美化完成！")
+
+        save_result = save_md_file(
+            markdown_project_name, 
+            markdown_file_name, 
+            md_pretty_content
+        )
+
+        if save_result != "保存成功":
+            print("文件保存失败。")
+            continue
+
+        print("文件保存成功。")
+
 
 if __name__ == "__main__":
     main()

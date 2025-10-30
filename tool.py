@@ -1,6 +1,5 @@
-from langchain.tools import tool
 from custome_type import ProjectStruct
-from typing import Union, List
+from typing import Union
 from docx import Document
 
 import os
@@ -29,7 +28,29 @@ def _revert_docx_to_md(doc: Document, md_project_name: str) -> str:
     image_count = 0
     full_text = ""
 
+    parent = doc.element.body if hasattr(doc, 'element') else doc
+    markdown_struct = []
+    for child in parent.getchildren():
+        if child.tag.endswith("}p"):
+            markdown_struct.append("p")
+        elif child.tag.endswith("}tbl"):
+            markdown_struct.append("tb")
+
+    tables = []
+    for table in doc.tables:
+        rows = []
+        for row in table.rows:
+            cells = [cell.text.strip().replace("\n", "<br>") for cell in row.cells]
+            rows.append("| " + " | ".join(cells) + " |")
+        
+        if len(rows) > 1:
+            sep = "|" + "|".join([" --- "] * len(table.columns)) + "|"
+            rows.insert(1, sep)
+        tables.append("\n".join(rows))
+
+    paras = []
     for para in doc.paragraphs:
+        para_content = ""
         for run in para.runs:
             for child in run._element.getchildren():
                 if child.tag.endswith("}drawing") or child.tag.endswith("}pict"):
@@ -42,31 +63,22 @@ def _revert_docx_to_md(doc: Document, md_project_name: str) -> str:
                                 image_count += 1
                                 image_path = image_map.get(rId, f"img_{image_count}.jpg")
                                 print(image_path, rId)
-                                full_text += f"\n\n![图片{image_count}]({image_path})\n\n"
+                                para_content += f"\n\n![图片{image_count}]({image_path})\n\n"
 
                 elif child.tag.endswith("}t"):
                     text = child.text or ""
-                    full_text += text
-        full_text += "\n"
+                    para_content += text
+    
+        paras.append(para_content)
+
+    for item in markdown_struct:
+        if item == "p":
+            full_text += paras.pop(0) + "\n\n"
+        elif item == "tb":
+            full_text += tables.pop(0) + "\n\n"
 
     return full_text.strip()
         
-@tool
-def get_docx_list() -> List[str]:
-    """
-    获取本系统存放的DOCX文件名列表。
-
-    Args:
-        无
-
-    Returns:
-        返回本系统存放的DOCX文件名列表。
-    """
-
-    filelist = os.listdir(config["DOCX_DIR_PATH"])
-    return [file for file in filelist if file.endswith(".docx")]
-
-@tool
 def revert_and_save_md_file(docx_name: str, md_project_name: str, md_file_name: str) -> str:
     """
     将DOCX文件转换为MD文件，并保存到指定MD项目目录中。
@@ -106,7 +118,6 @@ def revert_and_save_md_file(docx_name: str, md_project_name: str, md_file_name: 
             print("转换过程中出错：", e)
             return "转换保存失败"
 
-@tool
 def mkdir_md_project(md_project_name: str) -> Union[ProjectStruct, str]:
     """
     创建一个md5项目目录，并返回项目
@@ -133,7 +144,6 @@ def mkdir_md_project(md_project_name: str) -> Union[ProjectStruct, str]:
     else:
         return "项目已存在"
 
-@tool
 def count_md_file_len(md_project_name: str, md_file_name: str) -> int:
     """
     获取MD文件内容总字符数
@@ -159,21 +169,18 @@ def count_md_file_len(md_project_name: str, md_file_name: str) -> int:
             content = f.read()
         return len(content)
 
-@tool
-def read_md_file_with_limit(md_project_name: str, md_file_name: str, prefix: int, limit: int) -> str:
+def read_md_file(md_project_name: str, md_file_name: str) -> str:
     """
     读取MD文件内容，并返回指定长度的内容。
 
     Args:
         md_project_name: MD项目名称
         md_file_name: MD文件名称，必须以.md结尾
-        prefix: 内容起始偏移量，最小值为0
-        limit: 最大字符数限制，最小值为1
 
     Returns:
         如果指定文件不存在，则返回"文件不存在"
         如果指定文件不是MD文件，则返回"文件不是MD文件"
-        如果指定文件存在且是MD文件，则返回指定范围的内容
+        如果指定文件存在且是MD文件，则返回该文件内容
     """
 
     md_file_path = os.path.join(config["MD_DIR_PATH"], md_project_name, md_file_name)
@@ -185,9 +192,8 @@ def read_md_file_with_limit(md_project_name: str, md_file_name: str, prefix: int
     else:
         with open(md_file_path, "r", encoding="utf-8") as f:
             content = f.read()
-        return content[prefix:prefix+limit]
+        return content
 
-@tool
 def save_md_file(md_project_name: str, md_file_name: str, md_file_content: str) -> str:
     """
     将MD文件内容保存到指定MD文件中。
@@ -215,11 +221,6 @@ def save_md_file(md_project_name: str, md_file_name: str, md_file_content: str) 
             f.write(md_file_content)
         return "保存成功"
 
-tools = [
-    get_docx_list,
-    revert_and_save_md_file,
-    mkdir_md_project,
-    count_md_file_len,
-    read_md_file_with_limit,
-    save_md_file
-]
+if __name__ == "__main__":
+    doc = Document("./docx/ce.docx")
+    print(_revert_docx_to_md(doc, "test"))
